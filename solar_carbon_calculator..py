@@ -57,25 +57,26 @@ with col2:
     preco_carbono = st.number_input("Carbon credit price (€/tonne)", min_value=10.0, value=50.0, step=5.0)
     anos = st.slider("Analysis period (years)", 1, 30, 25)
 
-# ====================== CALCULATIONS ======================
+# ====================== CALCULATIONS (sempre em base currency) ======================
 producao_anual_kwh = potencia * regioes[regiao]
-co2_evitado_anual = (producao_anual_kwh / 1000) * 0.029
+co2_evitado = (producao_anual_kwh / 1000) * 0.029
 
-# Base calculations
 if is_brazil:
-    economia_anual = producao_anual_kwh * tarifa_eletrica                    # in BRL
-    valor_carbono_anual = co2_evitado_anual * preco_carbono * 5.15          # € → BRL
-    custo_sistema = potencia * 3200                                          # BRL
+    # Cálculos em BRL
+    economia = producao_anual_kwh * tarifa_eletrica
+    carbono = co2_evitado * preco_carbono * 5.15
+    custo_sistema = potencia * 3200
 else:
-    economia_anual = producao_anual_kwh * tarifa_eletrica                    # in EUR
-    valor_carbono_anual = co2_evitado_anual * preco_carbono                 # in EUR
-    custo_sistema = potencia * 850                                           # EUR
+    # Cálculos em EUR
+    economia = producao_anual_kwh * tarifa_eletrica
+    carbono = co2_evitado * preco_carbono
+    custo_sistema = potencia * 850
 
-beneficio_anual = economia_anual + valor_carbono_anual
+beneficio_anual = economia + carbono
 beneficio_total = beneficio_anual * anos
-payback_anos = custo_sistema / beneficio_anual if beneficio_anual > 0 else 0
+payback = custo_sistema / beneficio_anual if beneficio_anual > 0 else 0
 
-# ====================== FORMAT FUNCTION (CORRIGIDA) ======================
+# ====================== CONVERSÃO CORRETA ======================
 def format_value(value):
     if currency_code == "BRL":
         return f"R$ {value:,.2f}"
@@ -93,16 +94,15 @@ st.success(f"**Annual Production:** {producao_anual_kwh:,.0f} kWh/year")
 
 col_a, col_b, col_c, col_d = st.columns(4)
 with col_a:
-    st.metric("Electricity Savings / year", format_value(economia_anual))
+    st.metric("Electricity Savings / year", format_value(economia))
 with col_b:
-    st.metric("Carbon Credits / year", format_value(valor_carbono_anual))
+    st.metric("Carbon Credits / year", format_value(carbono))
 with col_c:
     st.metric("Total Annual Benefit", format_value(beneficio_anual))
 with col_d:
     st.metric("Estimated System Cost", format_value(custo_sistema))
 
-st.metric(f"**Payback Period**", f"{payback_anos:.1f} years")
-
+st.metric(f"**Payback Period**", f"{payback:.1f} years")
 st.metric(f"**Total Benefit over {anos} years**", format_value(beneficio_total))
 
 # Charts
@@ -111,8 +111,8 @@ tab1, tab2 = st.tabs(["Benefit Evolution", "Monthly Production"])
 with tab1:
     df = pd.DataFrame({
         "Year": range(1, anos + 1),
-        "Electricity Savings": [economia_anual * y for y in range(1, anos + 1)],
-        "Carbon Credits": [valor_carbono_anual * y for y in range(1, anos + 1)],
+        "Electricity Savings": [economia * y for y in range(1, anos + 1)],
+        "Carbon Credits": [carbono * y for y in range(1, anos + 1)],
         "Total Benefit": [beneficio_anual * y for y in range(1, anos + 1)]
     })
     fig = px.line(df, x="Year", y=["Electricity Savings", "Carbon Credits", "Total Benefit"],
@@ -121,11 +121,10 @@ with tab1:
 
 with tab2:
     meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    fator_mensal = [0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.11, 0.10, 0.09, 0.08, 0.06, 0.05]
-    producao_mensal = [producao_anual_kwh * f for f in fator_mensal]
-    df_mensal = pd.DataFrame({"Month": meses, "kWh": producao_mensal})
+    fator = [0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.11, 0.10, 0.09, 0.08, 0.06, 0.05]
+    df_mensal = pd.DataFrame({"Month": meses, "kWh": [producao_anual_kwh * f for f in fator]})
     fig2 = px.bar(df_mensal, x="Month", y="kWh", title="Approximate Monthly Production")
     st.plotly_chart(fig2, use_container_width=True)
 
-st.info("**Note**: Values are shown in the selected currency. System cost is an average estimate (2026).")
+st.info("**Note**: Values shown in selected currency using approximate exchange rates (1 USD ≈ 5.15 BRL).")
 st.caption("Made for eekwh.net • Brazil & Iberian Peninsula")
