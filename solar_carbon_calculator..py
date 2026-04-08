@@ -4,24 +4,24 @@ import plotly.express as px
 
 st.set_page_config(page_title="Solar Carbon & Savings Calculator", layout="wide")
 
-# ====================== CURRENCY ======================
+# ====================== CURRENCY SELECTION ======================
 st.sidebar.header("🌍 Currency Selection")
 
-currency = st.sidebar.selectbox(
+currency_option = st.sidebar.selectbox(
     "Display currency",
     options=["EUR - Euro", "USD - US Dollar", "BRL - Brazilian Real"],
     index=0
 )
 
-if currency == "EUR - Euro":
+if currency_option == "EUR - Euro":
     symbol = "€"
-    currency_code = "EUR"
-elif currency == "USD - US Dollar":
+    code = "EUR"
+elif currency_option == "USD - US Dollar":
     symbol = "$"
-    currency_code = "USD"
+    code = "USD"
 else:
     symbol = "R$"
-    currency_code = "BRL"
+    code = "BRL"
 
 # ====================== COUNTRY & REGION ======================
 st.title("🌞 Solar Carbon & Savings Calculator")
@@ -57,30 +57,28 @@ with col2:
     preco_carbono = st.number_input("Carbon credit price (€/tonne)", min_value=10.0, value=50.0, step=5.0)
     anos = st.slider("Analysis period (years)", 1, 30, 25)
 
-# ====================== CALCULATIONS (sempre em base currency) ======================
+# ====================== CALCULATIONS ======================
 producao_anual_kwh = potencia * regioes[regiao]
 co2_evitado = (producao_anual_kwh / 1000) * 0.029
 
 if is_brazil:
-    # Cálculos em BRL
-    economia = producao_anual_kwh * tarifa_eletrica
-    carbono = co2_evitado * preco_carbono * 5.15
-    custo_sistema = potencia * 3200
+    economia = producao_anual_kwh * tarifa_eletrica          # BRL
+    carbono = co2_evitado * preco_carbono * 5.15             # € → BRL
+    custo = potencia * 3200                                  # BRL
 else:
-    # Cálculos em EUR
-    economia = producao_anual_kwh * tarifa_eletrica
-    carbono = co2_evitado * preco_carbono
-    custo_sistema = potencia * 850
+    economia = producao_anual_kwh * tarifa_eletrica          # EUR
+    carbono = co2_evitado * preco_carbono                    # EUR
+    custo = potencia * 850                                   # EUR
 
 beneficio_anual = economia + carbono
 beneficio_total = beneficio_anual * anos
-payback = custo_sistema / beneficio_anual if beneficio_anual > 0 else 0
+payback = custo / beneficio_anual if beneficio_anual > 0 else 0
 
-# ====================== CONVERSÃO CORRETA ======================
+# ====================== CORRECT CONVERSION ======================
 def format_value(value):
-    if currency_code == "BRL":
+    if code == "BRL":
         return f"R$ {value:,.2f}"
-    elif currency_code == "EUR":
+    elif code == "EUR":
         return f"€ {value:,.2f}"
     else:  # USD
         if is_brazil:
@@ -100,7 +98,7 @@ with col_b:
 with col_c:
     st.metric("Total Annual Benefit", format_value(beneficio_anual))
 with col_d:
-    st.metric("Estimated System Cost", format_value(custo_sistema))
+    st.metric("Estimated System Cost", format_value(custo))
 
 st.metric(f"**Payback Period**", f"{payback:.1f} years")
 st.metric(f"**Total Benefit over {anos} years**", format_value(beneficio_total))
@@ -126,5 +124,5 @@ with tab2:
     fig2 = px.bar(df_mensal, x="Month", y="kWh", title="Approximate Monthly Production")
     st.plotly_chart(fig2, use_container_width=True)
 
-st.info("**Note**: Values shown in selected currency using approximate exchange rates (1 USD ≈ 5.15 BRL).")
+st.info("**Note**: Values are shown in the selected currency using approximate exchange rates.")
 st.caption("Made for eekwh.net • Brazil & Iberian Peninsula")
