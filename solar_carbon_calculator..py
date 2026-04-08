@@ -32,7 +32,7 @@ def format_currency(value_base: float) -> str:
     converted = value_base / rate_to_base if currency_code != "EUR" else value_base
     return f"{symbol} {converted:,.2f}"
 
-# ====================== PAGE TITLE ======================
+# ====================== MAIN TITLE ======================
 st.title("🌞 Solar Carbon & Savings Calculator")
 st.markdown("**For Brazil and the Iberian Peninsula** | Updated 2026")
 
@@ -43,10 +43,10 @@ with col1:
     pais = st.selectbox(
         "Select Country / País",
         options=["Brazil", "Portugal", "Spain"],
-        index=1  # Default: Portugal (como moras lá)
+        index=1   # Default: Portugal
     )
 
-# Define regions based on selected country
+# Define regions according to selected country
 if pais == "Brazil":
     regioes = {
         "South": 1350,
@@ -77,7 +77,7 @@ else:  # Spain
 with col2:
     regiao = st.selectbox("Installation region / Região", options=list(regioes.keys()))
 
-# ====================== USER INPUTS ======================
+# ====================== OTHER INPUTS ======================
 potencia = st.number_input("Installed capacity (kWp)", min_value=1.0, value=5.0, step=0.5)
 
 col_a, col_b = st.columns(2)
@@ -96,12 +96,11 @@ producao_anual_mwh = producao_anual_kwh / 1000
 FATOR_EMISSAO = 0.029
 co2_evitado_anual = producao_anual_mwh * FATOR_EMISSAO
 
-# All calculations in base currency (EUR for Europe, converted for Brazil)
 if pais == "Brazil":
     valor_carbono_anual = co2_evitado_anual * (preco_carbono * 5.15)   # convert to R$
     economia_conta_anual = producao_anual_kwh * tarifa_eletrica
 else:
-    valor_carbono_anual = co2_evitado_anual * preco_carbono   # in €
+    valor_carbono_anual = co2_evitado_anual * preco_carbono
     economia_conta_anual = producao_anual_kwh * tarifa_eletrica
 
 beneficio_total_anual = economia_conta_anual + valor_carbono_anual
@@ -133,6 +132,5 @@ fig = px.line(df, x="Year", y=["Electricity Savings", "Carbon Credits", "Total B
               title="Benefit Evolution Over Time", markers=True)
 st.plotly_chart(fig, use_container_width=True)
 
-st.info("💡 **Note**: All monetary values are shown in the selected currency. Results are estimates.")
+st.info("💡 All monetary values are shown in the selected currency. Results are estimates only.")
 st.caption("Made for eekwh.net • Supporting Brazil and the Iberian Peninsula")
-
