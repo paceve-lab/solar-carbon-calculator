@@ -16,83 +16,92 @@ currency_options = {
 selected_currency_label = st.sidebar.selectbox(
     "Select display currency",
     options=list(currency_options.keys()),
-    index=1  # Default: EUR (porque moras em Portugal)
+    index=1  # Default: EUR
 )
 
 selected_currency = currency_options[selected_currency_label]
 symbol = selected_currency["symbol"]
 currency_code = selected_currency["code"]
 
-# Exchange rates (April 2026)
-exchange_rates = {
-    "USD": 5.15,
-    "EUR": 1.0,      # Base para Portugal/Europa
-    "BRL": 1.0
-}
+exchange_rates = {"USD": 5.15, "EUR": 1.0, "BRL": 1.0}
+rate_to_base = exchange_rates[currency_code]
 
-rate_to_base = exchange_rates[currency_code]   # Para EUR é 1.0
-
-def format_currency(value_base: float) -> str:   # value_base agora em EUR
+def format_currency(value_base: float) -> str:
     if value_base is None or value_base < 0:
         value_base = 0.0
     converted = value_base / rate_to_base if currency_code != "EUR" else value_base
     return f"{symbol} {converted:,.2f}"
 
-# ====================== SOLAR PRODUCTION DATA ======================
+# ====================== PAGE TITLE ======================
 st.title("🌞 Solar Carbon & Savings Calculator")
 st.markdown("**For Brazil and the Iberian Peninsula** | Updated 2026")
 
-# Solar yield (kWh/kWp/year) - realistic averages
-solar_yield = {
-    # Brazil
-    "Brazil - South": 1350,
-    "Brazil - Southeast": 1520,
-    "Brazil - Midwest": 1650,
-    "Brazil - Northeast": 1780,
-    "Brazil - North": 1700,
-    # Iberian Peninsula
-    "Portugal - North (Porto)": 1450,
-    "Portugal - Center (Lisbon)": 1600,
-    "Portugal - South (Algarve)": 1750,
-    "Spain - North": 1400,
-    "Spain - Center (Madrid)": 1650,
-    "Spain - South (Andalusia)": 1900
-}
-
-# Average electricity tariff (2025/2026)
-tarifa_media = {
-    "Brazil": 0.91,      # R$/kWh
-    "Iberian Peninsula": 0.22   # €/kWh (aprox. Portugal/Espanha residencial)
-}
-
-# ====================== USER INPUTS ======================
+# ====================== COUNTRY & REGION SELECTION ======================
 col1, col2 = st.columns(2)
 
 with col1:
-    potencia = st.number_input("Installed capacity (kWp)", min_value=1.0, value=5.0, step=0.5)
-    regiao = st.selectbox("Installation region", options=list(solar_yield.keys()))
+    pais = st.selectbox(
+        "Select Country / País",
+        options=["Brazil", "Portugal", "Spain"],
+        index=1  # Default: Portugal (como moras lá)
+    )
+
+# Define regions based on selected country
+if pais == "Brazil":
+    regioes = {
+        "South": 1350,
+        "Southeast": 1520,
+        "Midwest": 1650,
+        "Northeast": 1780,
+        "North": 1700
+    }
+    tarifa_default = 0.91
+    moeda_tarifa = "R$/kWh"
+elif pais == "Portugal":
+    regioes = {
+        "North (Porto)": 1450,
+        "Center (Lisbon)": 1600,
+        "South (Algarve)": 1750
+    }
+    tarifa_default = 0.22
+    moeda_tarifa = "€/kWh"
+else:  # Spain
+    regioes = {
+        "North": 1400,
+        "Center (Madrid)": 1650,
+        "South (Andalusia)": 1900
+    }
+    tarifa_default = 0.23
+    moeda_tarifa = "€/kWh"
 
 with col2:
-    preco_carbono = st.number_input("Carbon credit price (€/tonne)", min_value=10.0, value=50.0, step=5.0)
-    if "Brazil" in regiao:
-        tarifa_eletrica = st.number_input("Your electricity rate (R$/kWh)", min_value=0.5, value=0.91, step=0.05)
-    else:
-        tarifa_eletrica = st.number_input("Your electricity rate (€/kWh)", min_value=0.10, value=0.22, step=0.01)
+    regiao = st.selectbox("Installation region / Região", options=list(regioes.keys()))
+
+# ====================== USER INPUTS ======================
+potencia = st.number_input("Installed capacity (kWp)", min_value=1.0, value=5.0, step=0.5)
+
+col_a, col_b = st.columns(2)
+with col_a:
+    tarifa_eletrica = st.number_input(f"Your electricity rate ({moeda_tarifa})", 
+                                      min_value=0.05, value=tarifa_default, step=0.01)
+with col_b:
     anos = st.slider("Analysis period (years)", 1, 25, 25)
 
-# ====================== CALCULATIONS ======================region updates
-producao_anual_kwh = potencia * solar_yield[regiao]
+preco_carbono = st.number_input("Carbon credit price (€/tonne)", min_value=10.0, value=50.0, step=5.0)
+
+# ====================== CALCULATIONS ======================
+producao_anual_kwh = potencia * regioes[regiao]
 producao_anual_mwh = producao_anual_kwh / 1000
 
-FATOR_EMISSAO = 0.029  # tCO₂/MWh (aprox. similar na Europa e Brasil)
+FATOR_EMISSAO = 0.029
 co2_evitado_anual = producao_anual_mwh * FATOR_EMISSAO
 
-# Convert everything to the base currency (EUR for Iberian, but we handle conversion later)
-if "Brazil" in regiao:
-    valor_carbono_anual = co2_evitado_anual * (preco_carbono * 5.15)  # convert € to R$ approx
+# All calculations in base currency (EUR for Europe, converted for Brazil)
+if pais == "Brazil":
+    valor_carbono_anual = co2_evitado_anual * (preco_carbono * 5.15)   # convert to R$
     economia_conta_anual = producao_anual_kwh * tarifa_eletrica
 else:
-    valor_carbono_anual = co2_evitado_anual * preco_carbono   # already in €
+    valor_carbono_anual = co2_evitado_anual * preco_carbono   # in €
     economia_conta_anual = producao_anual_kwh * tarifa_eletrica
 
 beneficio_total_anual = economia_conta_anual + valor_carbono_anual
@@ -101,19 +110,18 @@ valor_total = beneficio_total_anual * anos
 # ====================== RESULTS ======================
 st.success(f"**Estimated annual production:** {producao_anual_kwh:,.0f} kWh/year")
 
-col_a, col_b, col_c = st.columns(3)
-with col_a:
+col1, col2, col3 = st.columns(3)
+with col1:
     st.metric("Electricity bill savings/year", format_currency(economia_conta_anual))
-with col_b:
+with col2:
     st.metric("CO₂ avoided/year", f"{co2_evitado_anual:.3f} tonnes")
-with col_c:
+with col3:
     st.metric("Carbon credits value/year", format_currency(valor_carbono_anual))
 
 st.metric("**Total annual benefit**", format_currency(beneficio_total_anual))
-
 st.metric(f"**Total benefit over {anos} years**", format_currency(valor_total))
 
-# Chart (simplificado)
+# Chart
 df = pd.DataFrame({
     "Year": range(1, anos + 1),
     "Electricity Savings": [economia_conta_anual * y for y in range(1, anos + 1)],
@@ -125,6 +133,6 @@ fig = px.line(df, x="Year", y=["Electricity Savings", "Carbon Credits", "Total B
               title="Benefit Evolution Over Time", markers=True)
 st.plotly_chart(fig, use_container_width=True)
 
-st.info("💡 **Important notes**: Values are estimates. Real savings depend on your location, tariff, roof orientation and shading.")
+st.info("💡 **Note**: All monetary values are shown in the selected currency. Results are estimates.")
+st.caption("Made for eekwh.net • Supporting Brazil and the Iberian Peninsula")
 
-st.caption("Made for eekwh.net • Now supporting Brazil and the Iberian Peninsula")
