@@ -4,23 +4,24 @@ import plotly.express as px
 
 st.set_page_config(page_title="Solar Carbon & Savings Calculator", layout="wide")
 
-# ====================== CURRENCY SETUP ======================
+# ====================== CURRENCY ======================
 st.sidebar.header("🌍 Currency Selection")
 
-currency_options = {
-    "USD - US Dollar": {"symbol": "$", "code": "USD"},
-    "EUR - Euro":      {"symbol": "€", "code": "EUR"},
-    "BRL - Brazilian Real": {"symbol": "R$", "code": "BRL"}
-}
-
-selected_currency_label = st.sidebar.selectbox(
-    "Display currency", 
-    options=list(currency_options.keys()), 
-    index=1  # Default: EUR
+currency = st.sidebar.selectbox(
+    "Display currency",
+    options=["EUR - Euro", "USD - US Dollar", "BRL - Brazilian Real"],
+    index=0
 )
 
-symbol = currency_options[selected_currency_label]["symbol"]
-currency_code = currency_options[selected_currency_label]["code"]
+if currency == "EUR - Euro":
+    symbol = "€"
+    currency_code = "EUR"
+elif currency == "USD - US Dollar":
+    symbol = "$"
+    currency_code = "USD"
+else:
+    symbol = "R$"
+    currency_code = "BRL"
 
 # ====================== COUNTRY & REGION ======================
 st.title("🌞 Solar Carbon & Savings Calculator")
@@ -35,15 +36,17 @@ with col1:
         regioes = {"South": 1350, "Southeast": 1520, "Midwest": 1650, "Northeast": 1780, "North": 1700}
         tarifa_default = 0.91
         moeda_tarifa = "R$/kWh"
-        base_currency = "BRL"
-    else:
-        regioes = {
-            "Portugal": {"North (Porto)": 1450, "Center (Lisbon)": 1600, "South (Algarve)": 1750},
-            "Spain": {"North": 1400, "Center (Madrid)": 1650, "South (Andalusia)": 1900}
-        }[pais]
-        tarifa_default = 0.22 if pais == "Portugal" else 0.23
+        is_brazil = True
+    elif pais == "Portugal":
+        regioes = {"North (Porto)": 1450, "Center (Lisbon)": 1600, "South (Algarve)": 1750}
+        tarifa_default = 0.22
         moeda_tarifa = "€/kWh"
-        base_currency = "EUR"
+        is_brazil = False
+    else:
+        regioes = {"North": 1400, "Center (Madrid)": 1650, "South (Andalusia)": 1900}
+        tarifa_default = 0.23
+        moeda_tarifa = "€/kWh"
+        is_brazil = False
 
     regiao = st.selectbox("Installation region / Região", list(regioes.keys()))
 
@@ -56,32 +59,33 @@ with col2:
 
 # ====================== CALCULATIONS ======================
 producao_anual_kwh = potencia * regioes[regiao]
-producao_anual_mwh = producao_anual_kwh / 1000
-co2_evitado_anual = producao_anual_mwh * 0.029
+co2_evitado_anual = (producao_anual_kwh / 1000) * 0.029
 
-# All calculations in base currency
-if base_currency == "BRL":
-    economia_anual = producao_anual_kwh * tarifa_eletrica
-    valor_carbono_anual = co2_evitado_anual * (preco_carbono * 5.15)   # € to BRL
-    custo_sistema = potencia * 3200   # BRL/kWp
+# Base calculations
+if is_brazil:
+    economia_anual = producao_anual_kwh * tarifa_eletrica                    # in BRL
+    valor_carbono_anual = co2_evitado_anual * preco_carbono * 5.15          # € → BRL
+    custo_sistema = potencia * 3200                                          # BRL
 else:
-    economia_anual = producao_anual_kwh * tarifa_eletrica
-    valor_carbono_anual = co2_evitado_anual * preco_carbono           # already in €
-    custo_sistema = potencia * 850    # EUR/kWp
+    economia_anual = producao_anual_kwh * tarifa_eletrica                    # in EUR
+    valor_carbono_anual = co2_evitado_anual * preco_carbono                 # in EUR
+    custo_sistema = potencia * 850                                           # EUR
 
 beneficio_anual = economia_anual + valor_carbono_anual
 beneficio_total = beneficio_anual * anos
 payback_anos = custo_sistema / beneficio_anual if beneficio_anual > 0 else 0
 
-# ====================== DISPLAY FUNCTION ======================
+# ====================== FORMAT FUNCTION (CORRIGIDA) ======================
 def format_value(value):
-    """Converte corretamente para a moeda selecionada"""
     if currency_code == "BRL":
         return f"R$ {value:,.2f}"
     elif currency_code == "EUR":
         return f"€ {value:,.2f}"
     else:  # USD
-        converted = value / 5.15 if base_currency == "BRL" else value
+        if is_brazil:
+            converted = value / 5.15
+        else:
+            converted = value
         return f"$ {converted:,.2f}"
 
 # ====================== RESULTS ======================
@@ -101,7 +105,7 @@ st.metric(f"**Payback Period**", f"{payback_anos:.1f} years")
 
 st.metric(f"**Total Benefit over {anos} years**", format_value(beneficio_total))
 
-# Charts (mantidos simples)
+# Charts
 tab1, tab2 = st.tabs(["Benefit Evolution", "Monthly Production"])
 
 with tab1:
@@ -123,5 +127,5 @@ with tab2:
     fig2 = px.bar(df_mensal, x="Month", y="kWh", title="Approximate Monthly Production")
     st.plotly_chart(fig2, use_container_width=True)
 
-st.info("**Note**: All values are shown in the selected currency using approximate exchange rates.")
+st.info("**Note**: Values are shown in the selected currency. System cost is an average estimate (2026).")
 st.caption("Made for eekwh.net • Brazil & Iberian Peninsula")
