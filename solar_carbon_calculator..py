@@ -16,117 +16,115 @@ currency_options = {
 selected_currency_label = st.sidebar.selectbox(
     "Select display currency",
     options=list(currency_options.keys()),
-    index=0  # Default: USD
+    index=1  # Default: EUR (porque moras em Portugal)
 )
 
 selected_currency = currency_options[selected_currency_label]
 symbol = selected_currency["symbol"]
 currency_code = selected_currency["code"]
 
-# Exchange rates (1 unit of selected currency = X BRL) - Updated April 2026
+# Exchange rates (April 2026)
 exchange_rates = {
-    "USD": 5.15,   # 1 USD ≈ 5.15 BRL
-    "EUR": 5.95,   # 1 EUR ≈ 5.95 BRL
+    "USD": 5.15,
+    "EUR": 1.0,      # Base para Portugal/Europa
     "BRL": 1.0
 }
 
-rate_to_brl = exchange_rates[currency_code]
+rate_to_base = exchange_rates[currency_code]   # Para EUR é 1.0
 
-# Function to format any value in the chosen currency
-def format_currency(value_brl: float) -> str:
-    if value_brl is None or value_brl < 0:
-        value_brl = 0.0
-    converted = value_brl / rate_to_brl
+def format_currency(value_base: float) -> str:   # value_base agora em EUR
+    if value_base is None or value_base < 0:
+        value_base = 0.0
+    converted = value_base / rate_to_base if currency_code != "EUR" else value_base
     return f"{symbol} {converted:,.2f}"
 
-# ====================== OFFICIAL DATA ======================
-FATOR_EMISSAO = 0.029  # tCO₂/MWh (MCTI SIN average)
-PRECO_CARBONO_PADRAO = 50.0  # R$/tCO₂
+# ====================== SOLAR PRODUCTION DATA ======================
+st.title("🌞 Solar Carbon & Savings Calculator")
+st.markdown("**For Brazil and the Iberian Peninsula** | Updated 2026")
 
-# Solar production (kWh/kWp/year) - realistic Brazil averages
-regioes = {
-    "South": 1350,
-    "Southeast": 1520,
-    "Midwest": 1650,
-    "Northeast": 1780,
-    "North": 1700
+# Solar yield (kWh/kWp/year) - realistic averages
+solar_yield = {
+    # Brazil
+    "Brazil - South": 1350,
+    "Brazil - Southeast": 1520,
+    "Brazil - Midwest": 1650,
+    "Brazil - Northeast": 1780,
+    "Brazil - North": 1700,
+    # Iberian Peninsula
+    "Portugal - North (Porto)": 1450,
+    "Portugal - Center (Lisbon)": 1600,
+    "Portugal - South (Algarve)": 1750,
+    "Spain - North": 1400,
+    "Spain - Center (Madrid)": 1650,
+    "Spain - South (Andalusia)": 1900
 }
 
-TARIFA_MEDIA_KWH = 0.91  # R$/kWh average
-
-# ====================== PAGE TITLE ======================
-st.title("🌞 Solar Carbon & Savings Calculator")
-st.markdown("**For homes and small & medium businesses in Brazil** | Updated 2026")
+# Average electricity tariff (2025/2026)
+tarifa_media = {
+    "Brazil": 0.91,      # R$/kWh
+    "Iberian Peninsula": 0.22   # €/kWh (aprox. Portugal/Espanha residencial)
+}
 
 # ====================== USER INPUTS ======================
 col1, col2 = st.columns(2)
 
 with col1:
     potencia = st.number_input("Installed capacity (kWp)", min_value=1.0, value=5.0, step=0.5)
-    regiao = st.selectbox("Installation region", options=list(regioes.keys()))
+    regiao = st.selectbox("Installation region", options=list(solar_yield.keys()))
 
 with col2:
-    preco_carbono = st.number_input("Carbon credit price (R$/tonne)", min_value=10.0, value=PRECO_CARBONO_PADRAO, step=5.0)
-    tarifa_eletrica = st.number_input("Your electricity rate (R$/kWh)", min_value=0.5, value=TARIFA_MEDIA_KWH, step=0.05)
+    preco_carbono = st.number_input("Carbon credit price (€/tonne)", min_value=10.0, value=50.0, step=5.0)
+    if "Brazil" in regiao:
+        tarifa_eletrica = st.number_input("Your electricity rate (R$/kWh)", min_value=0.5, value=0.91, step=0.05)
+    else:
+        tarifa_eletrica = st.number_input("Your electricity rate (€/kWh)", min_value=0.10, value=0.22, step=0.01)
     anos = st.slider("Analysis period (years)", 1, 25, 25)
 
-# ====================== CALCULATIONS ======================
-producao_anual_kwh = potencia * regioes[regiao]
+# ====================== CALCULATIONS ======================region updates
+producao_anual_kwh = potencia * solar_yield[regiao]
 producao_anual_mwh = producao_anual_kwh / 1000
 
+FATOR_EMISSAO = 0.029  # tCO₂/MWh (aprox. similar na Europa e Brasil)
 co2_evitado_anual = producao_anual_mwh * FATOR_EMISSAO
-valor_carbono_anual_brl = co2_evitado_anual * preco_carbono
-economia_conta_anual_brl = producao_anual_kwh * tarifa_eletrica
-beneficio_total_anual_brl = economia_conta_anual_brl + valor_carbono_anual_brl
-valor_total_brl = beneficio_total_anual_brl * anos
+
+# Convert everything to the base currency (EUR for Iberian, but we handle conversion later)
+if "Brazil" in regiao:
+    valor_carbono_anual = co2_evitado_anual * (preco_carbono * 5.15)  # convert € to R$ approx
+    economia_conta_anual = producao_anual_kwh * tarifa_eletrica
+else:
+    valor_carbono_anual = co2_evitado_anual * preco_carbono   # already in €
+    economia_conta_anual = producao_anual_kwh * tarifa_eletrica
+
+beneficio_total_anual = economia_conta_anual + valor_carbono_anual
+valor_total = beneficio_total_anual * anos
 
 # ====================== RESULTS ======================
 st.success(f"**Estimated annual production:** {producao_anual_kwh:,.0f} kWh/year")
 
 col_a, col_b, col_c = st.columns(3)
-
 with col_a:
-    st.metric("Electricity bill savings/year", format_currency(economia_conta_anual_brl))
-
+    st.metric("Electricity bill savings/year", format_currency(economia_conta_anual))
 with col_b:
     st.metric("CO₂ avoided/year", f"{co2_evitado_anual:.3f} tonnes")
-
 with col_c:
-    st.metric("Carbon credits value/year", format_currency(valor_carbono_anual_brl))
+    st.metric("Carbon credits value/year", format_currency(valor_carbono_anual))
 
-st.metric(
-    "**Total annual benefit** (savings + credits)", 
-    format_currency(beneficio_total_anual_brl),
-    delta=f"{format_currency(valor_carbono_anual_brl)} from carbon credits"
-)
+st.metric("**Total annual benefit**", format_currency(beneficio_total_anual))
 
-st.metric(f"**Total benefit over {anos} years**", format_currency(valor_total_brl))
+st.metric(f"**Total benefit over {anos} years**", format_currency(valor_total))
 
-# ====================== CHART ======================
+# Chart (simplificado)
 df = pd.DataFrame({
     "Year": range(1, anos + 1),
-    "Electricity Savings": [economia_conta_anual_brl * y for y in range(1, anos + 1)],
-    "Carbon Credits": [valor_carbono_anual_brl * y for y in range(1, anos + 1)],
-    "Total Benefit": [beneficio_total_anual_brl * y for y in range(1, anos + 1)]
+    "Electricity Savings": [economia_conta_anual * y for y in range(1, anos + 1)],
+    "Carbon Credits": [valor_carbono_anual * y for y in range(1, anos + 1)],
+    "Total Benefit": [beneficio_total_anual * y for y in range(1, anos + 1)]
 })
 
-fig = px.line(df, x="Year", 
-              y=["Electricity Savings", "Carbon Credits", "Total Benefit"],
-              title="Benefit Evolution Over Time (in selected currency)",
-              markers=True)
-
-# Update legend to show currency
-fig.update_layout(legend_title="Benefit Type")
+fig = px.line(df, x="Year", y=["Electricity Savings", "Carbon Credits", "Total Benefit"],
+              title="Benefit Evolution Over Time", markers=True)
 st.plotly_chart(fig, use_container_width=True)
 
-# ====================== NOTES ======================
-st.caption("Data sources: MCTI emission factor (~0.029 tCO₂/MWh), regional solar yield averages, ANEEL-based electricity tariffs.")
+st.info("💡 **Important notes**: Values are estimates. Real savings depend on your location, tariff, roof orientation and shading.")
 
-st.info("💡 **Important notes**: \n"
-        "• All monetary values are shown in the selected currency using approximate exchange rates.\n"
-        "• Electricity savings assume self-consumption with net metering. Real values depend on your distributor and tariff.\n"
-        "• Carbon credits for small systems usually require project aggregation and certification. This shows estimated potential only.\n"
-        "• This is a simulation tool. Consult a specialist for precise calculations.")
-
-st.divider()
-st.markdown("Built for **eekwh.net** – Solar Carbon & Savings Tool")
+st.caption("Made for eekwh.net • Now supporting Brazil and the Iberian Peninsula")
